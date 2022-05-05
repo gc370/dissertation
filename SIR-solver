@@ -1,0 +1,91 @@
+% SIR Equations - with positive initial conditions
+ 
+% S' = -beta/n * I * S;
+% I' = beta/n * I * S - Gamma*I
+% R' = gamma* I
+ 
+% --- > insert initial conditions
+ 
+    S0 = 9800;
+    I0 = 20;
+    R0 = 0;
+ 
+% PARAMETERS
+ 
+    beta = 2;
+    gamma = 1;
+    n = 10000;
+    r = 0.75;
+ 
+% DOMAIN OF INTEREST
+ 
+    tbeg = 0;
+    tend = 20;
+ 
+% PARAMETERS FOR RK
+ 
+    % -> keep nodes amount even
+    numberofnodes = 10000;
+    dt = (tend-tbeg)/numberofnodes;
+    times = zeros(numberofnodes+1,1);
+ 
+        for i = 2:numberofnodes+1
+ 
+            times(i) = tbeg + (i-1)*dt;
+ 
+        end
+ 
+ 
+% INITIAL CONDITIONS
+ 
+    S = zeros(numberofnodes+1,1);
+    I = zeros(numberofnodes+1,1);
+    R = zeros(numberofnodes+1,1);
+ 
+    S(1) = S0;
+    I(1) = I0;
+    R(1) = R0;
+ 
+% Use Runge Kutta methods (4th order)
+ 
+    sfunc = @(t,s,i,r) -(beta/n)*i*s;
+    ifunc = @(t,s,i,r) (beta/n)*i*s - gamma*i;
+    rfunc = @(t,s,i,r) gamma*i;
+    
+    % Employ 4 stage RK
+ 
+        for i = 2:numberofnodes+1
+ 
+          s1 = sfunc(times(i-1),S(i-1),I(i-1),R(i-1));
+          i1 = ifunc(times(i-1),S(i-1),I(i-1),R(i-1));
+          r1 = rfunc(times(i-1),S(i-1),I(i-1),R(i-1));
+          
+          s2 = sfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s1),I(i-1) + (dt/2)*(i1),R(i-1) + (dt/2)*(r1));
+          i2 = ifunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s1),I(i-1) + (dt/2)*(i1),R(i-1) + (dt/2)*(r1));
+          r2 = rfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s1),I(i-1) + (dt/2)*(i1),R(i-1) + (dt/2)*(r1));
+          
+          s3 = sfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s2),I(i-1) + (dt/2)*(i2),R(i-1) + (dt/2)*(r2));
+          i3 = ifunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s2),I(i-1) + (dt/2)*(i2),R(i-1) + (dt/2)*(r2));
+          r3 = rfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s2),I(i-1) + (dt/2)*(i2),R(i-1) + (dt/2)*(r2));
+          
+          s4 = sfunc(times(i-1) + (dt),S(i-1) + (dt)*(s3),I(i-1) + (dt)*(i3),R(i-1) + (dt)*(r3));
+          i4 = ifunc(times(i-1) + (dt),S(i-1) + (dt)*(s3),I(i-1) + (dt)*(i3),R(i-1) + (dt)*(r3));
+          r4 = rfunc(times(i-1) + (dt),S(i-1) + (dt)*(s3),I(i-1) + (dt)*(i3),R(i-1) + (dt)*(r3));
+          
+       
+          S(i) = S(i-1) + (dt/6)*(s1 + 2*(s2 + s3) + s4);
+          I(i) = I(i-1) + (dt/6)*(i1 + 2*(i2 + i3) + i4);
+          R(i) = R(i-1) + (dt/6)*(r1 + 2*(r2 + r3) + r4);
+          
+ 
+        end
+ 
+% ---- Values are now calculated, calculate areas for infectious integrals ----- %
+ 
+% area 0 is 0-1, area 1 is 1-2, midpoint is (n/2) + 1
+ 
+area0 = sum(I(2:(numberofnodes/2)))*dt + (dt/2)*(I(1) + I((numberofnodes/2) + 1));
+area1 = sum(I((numberofnodes/2):numberofnodes))*dt + (dt/2)*(I(numberofnodes+1) + I((numberofnodes/2) + 1));
+ 
+X0 = r*gamma*area0;
+X1 = r*gamma*area1;

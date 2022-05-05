@@ -7,6 +7,11 @@
  
   tic
 
+  beta = ;
+  gamma = ;
+  n = ;
+  r = ;
+
   maxiter = 1000;
   bepsilon = beta/(r*n);
 

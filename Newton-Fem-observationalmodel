@@ -1,0 +1,365 @@
+tic
+
+  tbeg = 0;
+  tend = 2;
+  numberofnodes = 800;
+  dt = (tend-tbeg)/numberofnodes;
+
+  % Parameters, beta, n, r, gamma;
+  
+  beta = 1.5;
+  gamma = 1;
+  n = 1000;
+  r = 0.75;
+
+  maxiter = 100;
+
+  % Constraints
+
+  X0 = 18.9739;
+  X1 = 28.8517;
+
+  lambda0 = 0;
+  lambda1 = 0;
+
+      times = zeros(numberofnodes+1,1);
+
+      for i = 1: numberofnodes+1
+          times(i) = tbeg + (i-1)*dt;
+      end
+
+
+            % Algo for initial guess in the form y = a*exp(bx)
+            
+            a = (X0*log((X1/X0)))/((X1/X0)-1);
+            a = a/(r*gamma);
+            b = log((X1/X0)); % b = log((X1/X0));
+        
+            iinitial = @(t)  a*exp(b*t);
+            iinitialguess = zeros(numberofnodes+1,1);
+           
+
+              for i = 1: numberofnodes+1
+
+                 iinitialguess(i) = iinitial(times(i)); 
+
+              end
+            
+              IG = iinitialguess;
+     
+              errors = 10*ones(numberofnodes+1,1);
+              residuals = 10*ones(numberofnodes+1,1);
+              j = 1;
+            
+              % --- Run the algorithm untill convergence or we hit max iterations
+              
+            
+                        while j < maxiter && norm(residuals)>10^(-1.5) 
+
+
+                        I = iinitialguess;
+
+                        % --------------------------------------------------- %
+
+                        % Build ------ Jacobian ------- matrix (LHS)
+
+                        LHS = zeros(numberofnodes+3);
+
+                        for i = 2: numberofnodes
+
+                           % int 1 | x_{i-1} -> x_{i}
+
+                           LHS(i,i-1)  =  LHS(i,i-1) + (1/dt)*( 2*I(i-1) - 2*I(i));
+                           LHS(i,i)    =  LHS(i,i) + (1/dt)*( 2*I(i) - 2*I(i-1));
+
+                            % int 1 | x_{i} -> x_{i+1}
+
+                           LHS(i,i)   = LHS(i,i) + (1/dt)*( 2*I(i) - 2*I(i+1));
+                           LHS(i,i+1) = LHS(i,i+1) + (1/dt)*( 2*I(i+1) - 2*I(i));
+
+                           % int 2 | x_{i-1} -> x_{i}
+
+                           LHS(i,i-1) = LHS(i,i-1) + (1/(2*dt))*(-2*I(i-1)) ;
+                           LHS(i,i)   = LHS(i,i) + (1/(2*dt))*(2*I(i)) ;
+
+                           % int 2 | x_{i} -> x_{i+1}
+
+                           LHS(i,i)   = LHS(i,i) + (1/(2*dt))*(2*I(i)) ;
+                           LHS(i,i+1) = LHS(i,i+1) + (1/(2*dt))*(-2*I(i+1));
+
+                           % int 3 | x_{i-1} -> x_{i}
+
+                           LHS(i,i-1) = LHS(i,i-1) - (beta/n)*( (I(i-1)^2)*(-1/4) + I(i-1)*I(i)*(-1/6) + (I(i)^2)*(-1/12)) ;
+                           LHS(i,i)   = LHS(i,i)  - (beta/n)*( (I(i)^2)*(3/4) + I(i-1)*I(i)*(-1/6) + (I(i-1)^2)*(-1/12)) ;
+
+                           % int 3 | x_{i} -> x_{i+1}
+
+                           LHS(i,i)   =  LHS(i,i)  - (beta/n)*( (I(i)^2)*(-3/4) + I(i)*I(i+1)*(1/6) + (I(i+1)^2)*(1/12) );
+                           LHS(i,i+1) =  LHS(i,i+1)  - (beta/n)*( (I(i+1)^2)*(1/6) + I(i)*I(i+1)*(1/6) + (I(i)^2)*(1/12) );
+
+                           % int 4 | x_{i-1} -> x_{i}
+
+                           LHS(i,i-1)  = LHS(i,i-1) -(beta*gamma/n)*( (I(i-1)^2)*(3*dt/20) + I(i-1)*I(i)*(dt/5) + (I(i)^2)*(3*dt/20) );
+                           LHS(i,i)    = LHS(i,i) -(beta*gamma/n)*( (I(i-1)^2)*(dt/10) + I(i-1)*I(i)*(6*dt/20) + (I(i)^2)*(3*dt/5) );
+
+                           % int 4 | x_{i} -> x_{i+1}
+
+                           LHS(i,i)   = LHS(i,i)  -(beta*gamma/n)*( (I(i)^2)*(3*dt/5) + I(i)*I(i+1)*(6*dt/20) + (I(i+1)^2)*(dt/10) ) ;
+                           LHS(i,i+1) = LHS(i,i+1) -(beta*gamma/n)*( (I(i)^2)*(3*dt/20) + I(i)*I(i+1)*(dt/5) + (I(i+1)^2)*(3*dt/20) );                    
+
+
+
+                        end
+
+
+                       % int1 Boundary conditions
+
+                       LHS(1,1) = LHS(1,1) + (1/dt)*( 2*I(1) - 2*I(2));
+                       LHS(1,2) = LHS(1,2) + (1/dt)*( 2*I(2) - 2*I(1));
+
+                       LHS(numberofnodes+1,numberofnodes)   =  LHS(numberofnodes+1,numberofnodes) + (1/dt)*( 2*I(numberofnodes) - 2*I(numberofnodes+1));
+                       LHS(numberofnodes+1,numberofnodes+1) =  LHS(numberofnodes+1,numberofnodes+1) + (1/dt)*( 2*I(numberofnodes+1) - 2*I(numberofnodes));
+
+                       % int2
+
+                       LHS(1,1) = LHS(1,1) + (1/(2*dt))*(2*I(1)) ;
+                       LHS(1,2) = LHS(1,2) + (1/(2*dt))*(-2*I(2));
+
+                       LHS(numberofnodes+1,numberofnodes)   = LHS(numberofnodes+1,numberofnodes) + (1/(2*dt))*(-2*I(numberofnodes)) ;
+                       LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1) + (1/(2*dt))*(2*I(numberofnodes+1)) ;
+
+                       % int3
+
+                       LHS(1,1) =  LHS(1,1)  - (beta/n)*( (I(1)^2)*(-3/4) + I(1)*I(2)*(1/6) + (I(2)^2)*(1/12) );
+                       LHS(1,2) =  LHS(1,2)  - (beta/n)*( (I(2)^2)*(1/6) + I(1)*I(2)*(1/6) + (I(1)^2)*(1/12) );
+
+                       LHS(numberofnodes+1,numberofnodes)   = LHS(numberofnodes+1,numberofnodes) - (beta/n)*( (I(numberofnodes)^2)*(-1/4) + I(numberofnodes)*I(numberofnodes+1)*(-1/6) + (I(numberofnodes+1)^2)*(-1/12)) ;
+                       LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1)  - (beta/n)*( (I(numberofnodes+1)^2)*(3/4) + I(numberofnodes)*I(numberofnodes+1)*(-1/6) + (I(numberofnodes)^2)*(-1/12)) ;
+
+
+                       % int4
+
+                       LHS(1,1) = LHS(1,1)  -(beta*gamma/n)*( (I(1)^2)*(3*dt/5) + I(1)*I(2)*(6*dt/20) + (I(2)^2)*(dt/10) ) ;
+                       LHS(1,2) = LHS(1,2) -(beta*gamma/n)*( (I(1)^2)*(3*dt/20) + I(1)*I(2)*(dt/5) + (I(2)^2)*(3*dt/20) );                    
+
+                       LHS(numberofnodes+1,numberofnodes)   = LHS(numberofnodes+1,numberofnodes) -(beta*gamma/n)*( (I(numberofnodes)^2)*(3*dt/20) + I(numberofnodes)*I(numberofnodes+1)*(dt/5) + (I(numberofnodes+1)^2)*(3*dt/20) );
+                       LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1) -(beta*gamma/n)*( (I(numberofnodes)^2)*(dt/10) + I(numberofnodes)*I(numberofnodes+1)*(6*dt/20) + (I(numberofnodes+1)^2)*(3*dt/5) );
+
+
+                       % Boundary conditions from the by parts
+
+                       LHS(1,1) = LHS(1,1) + (1/dt)*(I(2)-I(1));
+
+                       LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1) - (1/dt)*(I(numberofnodes+1) - I(numberofnodes));
+
+                       %--------------------------------------------------%
+
+                       % -------- Now look at lagrage terms, lambda 0 --- %
+
+                       % int 6
+
+                       for i = 2:floor((numberofnodes+1)/2)
+
+                          LHS(i,numberofnodes+2) = r*gamma*(dt);
+
+                       end
+
+                       LHS(1,numberofnodes+2) = r*gamma*(dt/2);
+                       LHS(floor((numberofnodes+1)/2)+1,numberofnodes+2) = r*gamma*(dt/2);
+
+
+                        %--------------------------------------------------%
+
+                        % -------- Now look at lagrage terms, lambda 1 --- %
+
+                        % int 6
+
+                          for i = floor((numberofnodes+1)/2)+2:numberofnodes+1
+
+                          LHS(i,numberofnodes+3) = r*gamma*(dt);
+
+                          end
+
+                          LHS(floor((numberofnodes+1)/2)+1,numberofnodes+3) = r*gamma*(dt/2);
+                          LHS(numberofnodes+1,numberofnodes+3) = r*gamma*(dt/2);
+
+                        %--------------------------------------------------%
+
+                         % -------- Now look at Constraint terms, X_0 --- %
+
+
+                        for i = 2:floor((numberofnodes+1)/2)
+
+                          LHS(numberofnodes+2,i) = r*gamma*(dt);
+
+                       end
+
+                       LHS(numberofnodes+2,1) = r*gamma*(dt/2);
+                       LHS(numberofnodes+2,floor((numberofnodes+1)/2)+1) = r*gamma*(dt/2);
+
+
+                        %--------------------------------------------------%
+
+                         % -------- Now look at Constraint terms, X_1 --- %
+
+                          for i = floor((numberofnodes+1)/2)+2:numberofnodes
+
+                          LHS(numberofnodes+3,i) = r*gamma*(dt);
+
+                          end
+
+                          LHS(numberofnodes+3,floor((numberofnodes+1)/2)+1) = r*gamma*(dt/2);
+                          LHS(numberofnodes+3,numberofnodes+1) = r*gamma*(dt/2);
+
+                        %--------------------------------------------------%
+
+                        RHS = zeros(numberofnodes+3,1);
+
+                        newconstraintX0 = sum(iinitialguess(2:floor((numberofnodes+1)/2)))*r*gamma*dt + (dt/2)*r*gamma*(iinitialguess(1) + iinitialguess(floor((numberofnodes+1)/2)+1));
+                        newconstraintX1 = sum(iinitialguess(floor((numberofnodes+1)/2)+2:numberofnodes))*r*gamma*dt + (dt/2)*r*gamma*(iinitialguess(floor((numberofnodes+1)/2)+1) + iinitialguess(numberofnodes+1));
+
+                        area0 = X0 - newconstraintX0;
+                        area1 = X1 - newconstraintX1;
+
+                        RHS(numberofnodes+2) = area0;
+                        RHS(numberofnodes+3) = area1;
+
+
+                        for i = 2: numberofnodes
+
+                            int1rhs1 = -(1/dt)*( I(i)^2 + I(i-1)^2 - 2*I(i)*I(i-1));
+                            int1rhs2 = -(1/dt)*( I(i)^2 + I(i+1)^2 - 2*I(i)*I(i+1));
+
+                            int2rhs1 = -(1/(2*dt))*( I(i)^2 - I(i-1)^2);
+                            int2rhs2 = -(1/(2*dt))*( I(i)^2 - I(i+1)^2);
+
+                            int3rhs1 = (beta/n)*( (I(i)^3)*(1/4) - (I(i-1)^3)*(1/12) + (I(i-1)^2)*I(i)*(-1/12) + (I(i)^2)*I(i-1)*(-1/12) );
+                            int3rhs2 = (beta/n)*( (I(i+1)^3)*(1/12) - (I(i)^3)*(1/4) + (I(i)^2)*I(i+1)*(1/12) + (I(i+1)^2)*I(i)*(1/12) );
+
+                            int4rhs1 = (beta*gamma/n)*( (I(i-1)^3)*(dt/20) + (I(i-1)^2)*I(i)*(dt/10) + (I(i)^2)*I(i-1)*(3*dt/20) + (I(i)^3)*(dt/5) );
+                            int4rhs2 = (beta*gamma/n)*( (I(i)^3)*(dt/5) + (I(i)^2)*I(i+1)*(3*dt/20) + (I(i+1)^2)*I(i)*(dt/10) + (I(i+1)^3)*(dt/20) );
+
+                            RHS(i) = int1rhs1 + int1rhs2 + int2rhs1 + int2rhs2 + int3rhs1 + int3rhs2 + int4rhs1 + int4rhs2;
+
+                        end
+
+
+                        % ----- Boundary terms for RHS(0) ---- %
+
+                        i=1;
+
+                        % from int 1
+
+                        RHSbeg1 = -(1/dt)*( I(i)^2 + I(i+1)^2 - 2*I(i)*I(i+1));
+
+                        % from int 2
+
+                        RHSbeg2 = -(1/(2*dt))*( I(i)^2 - I(i+1)^2);
+
+                        % from int 3 
+
+                         RHSbeg3 = (beta/n)*( (I(i+1)^3)*(1/12) - (I(i)^3)*(1/4) + (I(i)^2)*I(i+1)*(1/12) + (I(i+1)^2)*I(i)*(1/12) );
+
+                        % from int 4 
+
+                        RHSbeg4 = (beta*gamma/n)*( (I(i)^3)*(dt/5) + (I(i)^2)*I(i+1)*(3*dt/20) + (I(i+1)^2)*I(i)*(dt/10) + (I(i+1)^3)*(dt/20) );
+
+                        % from int 5
+
+                        RHSbeg5 = ((I(i)^2) - I(i)*I(i+1))*(1/dt) ;
+
+                        RHS(1) = RHSbeg1 + RHSbeg2 + RHSbeg3 + RHSbeg4 + RHSbeg5;
+
+
+
+                        % ------------------------------------ %
+
+                        % ----- Boundary terms for RHS(2) ---- %
+
+                        i = (numberofnodes+1);
+
+                        % from int 1
+
+                        RHSend1 = -(1/dt)*( I(i)^2 + I(i-1)^2 - 2*I(i)*I(i-1));
+
+                        % from int 2
+
+                        RHSend2 = -(1/(2*dt))*( I(i)^2 - I(i-1)^2);
+
+                        % from int3 
+
+                        RHSend3 = (beta/n)*( (I(i)^3)*(1/4) - (I(i-1)^3)*(1/12) + (I(i-1)^2)*I(i)*(-1/12) + (I(i)^2)*I(i-1)*(-1/12) );
+
+                        % from int4
+
+                        RHSend4 = (beta*gamma/n)*( (I(i-1)^3)*(dt/20) + (I(i-1)^2)*I(i)*(dt/10) + (I(i)^2)*I(i-1)*(3*dt/20) + (I(i)^3)*(dt/5) );
+
+                        % from int5
+
+                        RHSend5 = ((I(i)^2) - I(i)*I(i-1))*(1/dt);
+
+                        RHS(numberofnodes+1) = RHSend1 + RHSend2 + RHSend3 + RHSend4 + RHSend5; 
+
+                        % ------------------------------------ %
+
+
+                        % lagrange terms negation from initial guess
+
+                            for i = 2:floor((numberofnodes+1)/2)
+
+                                RHS(i) = RHS(i) - lambda0*(r*gamma*dt);
+
+                            end
+
+                            RHS(1) = RHS(1) - lambda0*(r*gamma*dt/2);
+                            RHS(floor((numberofnodes+1)/2)+1) = RHS(floor((numberofnodes+1)/2)+1) - lambda0*(r*gamma*dt/2);
+
+                            for i = floor((numberofnodes+1)/2)+2:numberofnodes
+
+                                RHS(i) = RHS(i) - lambda1*r*gamma*(dt);
+
+                            end
+
+                            RHS(numberofnodes+1) = RHS(numberofnodes+1) - lambda1*(r*gamma*dt/2);
+                            RHS(floor((numberofnodes+1)/2)+1) = RHS(floor((numberofnodes+1)/2)+1) - lambda1*(r*gamma*dt/2);
+
+
+                        prevlambda0 = lambda0;
+                        prevlambda1 = lambda1;
+
+                        newi = inv(LHS)*RHS;
+
+                            previousI = zeros(numberofnodes+1,1);
+
+                            for i = 1:numberofnodes+1
+
+                                previousI(i) = iinitialguess(i);
+
+                            end
+
+                        iinitialguess = zeros(numberofnodes+1,1);
+
+                            for i = 1:numberofnodes+1
+
+                               iinitialguess(i) = newi(i) + previousI(i);
+
+                            end
+
+                        lambda0 = newi(numberofnodes+2) + prevlambda0;
+                        lambda1 = newi(numberofnodes+3) + prevlambda1;
+
+                        residuals = zeros(numberofnodes+1,1);
+
+                            for i = 1:numberofnodes+1
+
+                                residuals(i) = abs(previousI(i) - iinitialguess(i));
+
+                            end
+      
+                        % new loop
+                        
+                        j=j+1;
+
+                        end
+        
+            toc

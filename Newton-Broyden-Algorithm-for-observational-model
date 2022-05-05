@@ -1,0 +1,264 @@
+% -------------------------- Shooting method ---------------------------- %
+ 
+  % Input values for X0, X1 
+ 
+  X0 = ;
+  X1 = ;
+ 
+  tic
+
+  maxiter = 1000;
+  bepsilon = beta/(r*n);
+
+  constraint1 = X0;
+  constraint2 = X1;
+
+  % ---- First guess
+
+  z1guess = 2.8;
+  z1prime = 0.2;
+  u1guess = z1prime;
+
+
+  % ---- Second guess
+
+  z2guess = 2.6 ;
+  z2prime = 0.3;
+  u2guess = z2prime;
+
+  % ---- First define the mesh
+
+  begginingtime = 0;
+  bt = begginingtime;
+  endtime = 2;
+  et =endtime;
+
+  numberofnodes = 800;
+  stepsize = (et-bt)/numberofnodes;
+  h = stepsize;
+  timevalues = zeros(numberofnodes+1,1);
+  t = timevalues;
+  t(1) = bt;
+
+      for i = 1:numberofnodes
+          t(i+1) = t(i) + stepsize; 
+      end
+
+% ---- Let z be the solution and u be its derivative, then
+
+z1 = zeros(numberofnodes+1,1);
+u1 = zeros(numberofnodes+1,1);
+z1(1) = z1guess;
+u1(1) = u1guess;
+
+z2 = zeros(numberofnodes+1,1);
+u2 = zeros(numberofnodes+1,1);
+z2(1) = z2guess;
+u2(1) = u2guess;
+
+    % ---- Define the ODE (in terms of z(t) = (1/rgamma)*exp(I(t)))
+
+    f = @(t,z,u) -bepsilon*exp(z)*((u/gamma) + 1);
+
+    % ---- Based on the intial guesses, calculate the the function Z
+
+            for i =2:numberofnodes+1
+
+                            k1first = h*u1(i-1);
+                            l1first = h*f(t(i-1),z1(i-1),u1(i-1));
+                            k2first = h*(u1(i-1) + (l1first/2));
+                            l2first = h*f(t(i-1) + (h/2),z1(i-1) + (k1first/2),u1(i-1) + (l1first/2));
+                            k3first = h*(u1(i-1) + (l2first/2));
+                            l3first = h*f(t(i-1) + (h/2),z1(i-1) + (k2first/2),u1(i-1) + (l2first/2));
+                            k4first = h*(u1(i-1) + l3first);
+                            l4first = h*f(t(i-1) + (h),z1(i-1) + k3first ,u1(i-1) + l3first);
+
+                            z1(i) = z1(i-1) + (1/6)*(k1first + (2*k2first) + (2*k3first) + k4first); %sol
+                            u1(i) = u1(i-1) + (1/6)*(l1first + (2*l2first) + (2*l3first) + l4first); %sol deriv
+
+                            k1first2 = h*u2(i-1);
+                            l1first2 = h*f(t(i-1),z2(i-1),u2(i-1));
+                            k2first2 = h*(u2(i-1) + (l1first2/2));
+                            l2first2 = h*f(t(i-1) + (h/2),z2(i-1) + (k1first2/2),u2(i-1) + (l1first2/2));
+                            k3first2 = h*(u2(i-1) + (l2first2/2));
+                            l3first2 = h*f(t(i-1) + (h/2),z2(i-1) + (k2first2/2),u2(i-1) + (l2first2/2));
+                            k4first2 = h*(u2(i-1) + l3first2);
+                            l4first2 = h*f(t(i-1) + (h),z2(i-1) + k3first2 ,u2(i-1) + l3first2);
+
+                            z2(i) = z2(i-1) + (1/6)*(k1first2 + (2*k2first2) + (2*k3first2) + k4first2); %sol
+                            u2(i) = u2(i-1) + (1/6)*(l1first2 + (2*l2first2) + (2*l3first2) + l4first2); 
+
+            end
+
+% ---------- First guess calculations -------------------------------------
+
+      % Now test for constraints i,e X_0 = ..., X_1 = ... Using trapezium rule
+      % for exp(z).
+
+      areaguess1 = zeros(numberofnodes,1);
+
+      for i = 1:numberofnodes
+      areaguess1(i) = (h/2)*(exp(z1(i)) + exp(z1(i+1)));    
+      end
+
+      totalareaguessf1 = 0;
+      totalareaguessf2 = 0;
+
+      for i = 1:(ceil(numberofnodes/2))
+          totalareaguessf1 = totalareaguessf1 + areaguess1(i);
+          totalareaguessf2 = totalareaguessf2 + areaguess1(i+(floor(numberofnodes/2)));
+      end
+
+
+% ---------- Second guess area calculations -------------------------------
+
+      % Now test for constraints i,e X_0 = .... , X_1 = .... Using trapezium rule
+      % for exp(z).
+
+      areaguess2 = zeros(numberofnodes,1);
+
+      for i = 1:numberofnodes
+      areaguess2(i) = (h/2)*(exp(z2(i)) + exp(z2(i+1)));    
+      end
+
+      totalareaguess2f1 = 0;
+      totalareaguess2f2 = 0;
+
+      for i = 1:(ceil(numberofnodes/2))
+          totalareaguess2f1 = totalareaguess2f1 + areaguess2(i);
+          totalareaguess2f2 = totalareaguess2f2 + areaguess2(i+(floor(numberofnodes/2)));
+      end
+
+% ----------------------------------------------------------------------------------
+
+    % ---- Calculate the first jacobian for broydens iteration
+
+    da1 = z2guess - z1guess;
+    db1 = u2guess - u1guess;
+
+    firstjacobianf1a = (totalareaguess2f1 - totalareaguessf1)/da1;
+    firstjacobianf1b = (totalareaguess2f1 - totalareaguessf1)/db1;
+    firstjacobianf2a = (totalareaguess2f2 - totalareaguessf2)/da1;
+    firstjacobianf2b = (totalareaguess2f2 - totalareaguessf2)/db1;
+
+% ----------------------------------------------------------------------------------
+
+      % Build everything we need for Broydens calculations and formula for
+      % iterations
+
+      invalueguess = zeros(maxiter,1);
+      inderivguess = zeros(maxiter,1);
+
+      invalueguess(1) = z1guess;
+      inderivguess(1) = u1guess;
+      invalueguess(2) = z2guess;
+      inderivguess(2) = u2guess;
+
+      jacobianf1a = zeros(maxiter,1);
+      jacobianf1b = zeros(maxiter,1);
+      jacobianf2a = zeros(maxiter,1);
+      jacobianf2b = zeros(maxiter,1);
+
+      jacobianf1a(1) = firstjacobianf1a;
+      jacobianf1b(1) = firstjacobianf1b;
+      jacobianf2a(1) = firstjacobianf2a;
+      jacobianf2b(1) = firstjacobianf2b;
+
+      f1area = zeros(maxiter,1);
+      f2area = zeros(maxiter,1);
+
+      f1area(1) = totalareaguessf1-constraint1;
+      f1area(2) = totalareaguessf2-constraint2;
+      f2area(1) = totalareaguess2f1-constraint1;
+      f2area(2) = totalareaguess2f2-constraint2;
+
+% -------------------------------------------------------------------------------
+
+ % ---- Now we build the next jacobian and insert it into newtons algorithm
+
+
+   for i=1:maxiter
+
+          j=i;
+          p1 = [f1area(i+1)-f1area(i);f2area(i+1)-f2area(i)];
+          p2 = [jacobianf1a(i),jacobianf1b(i);jacobianf2a(i),jacobianf2b(i)];
+          p3 = [invalueguess(i+1)-invalueguess(i);inderivguess(i+1)-inderivguess(i)];
+          p4 = transpose(p3);
+          p5 = (invalueguess(i+1)-invalueguess(i))^2 + (inderivguess(i+1)-inderivguess(i))^2;
+
+          newjacob = p2 + ((p1 - p2*p3)*(p4))/p5;
+
+          jacobianf1a(i+1) = newjacob(1,1);
+          jacobianf1b(i+1) = newjacob(1,2);
+          jacobianf2a(i+1) = newjacob(2,1);
+          jacobianf2b(i+1) = newjacob(2,2);
+
+          newapprox = [invalueguess(i+1);inderivguess(i+1)] - inv(newjacob)*[f1area(i+1);f2area(i+1)];
+
+          invalueguess(i+2) = newapprox(1);
+          inderivguess(i+2) = newapprox(2);
+
+          % We now need to work out the new areas for the given values
+
+          zvals = zeros(numberofnodes+1,1);
+          uvals = zeros(numberofnodes+1,1);
+
+          zvals(1) = invalueguess(i+2);
+          uvals(1) = inderivguess(i+2);
+
+          for i =2:numberofnodes+1
+
+                          k1firstval = h*uvals(i-1);
+                          l1firstval = h*f(t(i-1),zvals(i-1),uvals(i-1));
+                          k2firstval = h*(uvals(i-1) + (l1firstval/2));
+                          l2firstval = h*f(t(i-1) + (h/2),zvals(i-1) + (k1firstval/2),uvals(i-1) + (l1firstval/2));
+                          k3firstval = h*(uvals(i-1) + (l2firstval/2));
+                          l3firstval = h*f(t(i-1) + (h/2),zvals(i-1) + (k2firstval/2),uvals(i-1) + (l2firstval/2));
+                          k4firstval = h*(uvals(i-1) + l3firstval);
+                          l4firstval = h*f(t(i-1) + (h),zvals(i-1) + k3firstval ,uvals(i-1) + l3firstval);
+
+                          zvals(i) = zvals(i-1) + (1/6)*(k1firstval + (2*k2firstval) + (2*k3firstval) + k4firstval); %sol
+                          uvals(i) = uvals(i-1) + (1/6)*(l1firstval + (2*l2firstval) + (2*l3firstval) + l4firstval); %sol deriv
+
+          end
+
+          % ----------- Calculate the new areas
+
+          area = zeros(numberofnodes,1);
+
+          for i = 1:numberofnodes
+          area(i) = (h/2)*(exp(zvals(i)) + exp(zvals(i+1)));    
+          end
+
+          totalareaf1 = 0;
+          totalareaf2 = 0;
+
+          for i = 1:(ceil(numberofnodes/2))
+              totalareaf1 = totalareaf1 + area(i);
+              totalareaf2 = totalareaf2 + area(i+(floor(numberofnodes/2)));
+          end
+
+          f1area(j+2) = totalareaf1-constraint1;
+          f2area(j+2) = totalareaf2-constraint2;
+
+          areanorm = norm(totalareaf1-constraint1,totalareaf2-constraint2);
+
+          %----- See if we satisfy our tolerance criteria, if we do, we stop the loop
+
+          if areanorm < 10^(-6)
+             return; 
+          end
+
+
+  end
+
+      % ---- Now we have converged for z(t), convert back to I(t)
+
+      for i = 1:numberofnodes+1
+
+          sol(i) = exp(zvals(i))/(r*gamma);
+
+
+      end
+
+toc

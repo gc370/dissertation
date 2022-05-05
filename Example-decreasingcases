@@ -1,0 +1,763 @@
+% SIR Equations - with positive initial conditions
+ 
+% S' = -beta/n * I * S;
+% I' = beta/n * I * S - Gamma*I
+% R' = gamma* I
+ 
+% --- > insert initial conditions
+ 
+    S0 = 1000 - 184;
+    I0 = 184;
+    R0 = 0;
+ 
+% PARAMETERS
+
+    beta = 0.6;
+    gamma = 1;
+    n = 1000;
+    r = 0.75;
+ 
+% DOMAIN OF INTEREST
+ 
+    tbeg = 0;
+    tend = 2;
+ 
+% PARAMETERS FOR RK
+ 
+    % -> keep nodes amount even
+    numberofnodes = 800;
+    dt = (tend-tbeg)/numberofnodes;
+    times = zeros(numberofnodes+1,1);
+ 
+        for i = 2:numberofnodes+1
+ 
+            times(i) = tbeg + (i-1)*dt;
+ 
+        end
+ 
+ 
+% INITIAL CONDITIONS
+ 
+    S = zeros(numberofnodes+1,1);
+    I1 = zeros(numberofnodes+1,1);
+    R = zeros(numberofnodes+1,1);
+ 
+    S(1) = S0;
+    I1(1) = I0;
+    R(1) = R0;
+ 
+% Use Runge Kutta methods (4th order)
+ 
+    sfunc = @(t,s,i,r) -(beta/n)*i*s;
+    ifunc = @(t,s,i,r) (beta/n)*i*s - gamma*i;
+    rfunc = @(t,s,i,r) gamma*i;
+    
+    % Employ 4 stage RK
+ 
+        for i = 2:numberofnodes+1
+ 
+          s1 = sfunc(times(i-1),S(i-1),I1(i-1),R(i-1));
+          i1 = ifunc(times(i-1),S(i-1),I1(i-1),R(i-1));
+          r1 = rfunc(times(i-1),S(i-1),I1(i-1),R(i-1));
+          
+          s2 = sfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s1),I1(i-1) + (dt/2)*(i1),R(i-1) + (dt/2)*(r1));
+          i2 = ifunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s1),I1(i-1) + (dt/2)*(i1),R(i-1) + (dt/2)*(r1));
+          r2 = rfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s1),I1(i-1) + (dt/2)*(i1),R(i-1) + (dt/2)*(r1));
+          
+          s3 = sfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s2),I1(i-1) + (dt/2)*(i2),R(i-1) + (dt/2)*(r2));
+          i3 = ifunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s2),I1(i-1) + (dt/2)*(i2),R(i-1) + (dt/2)*(r2));
+          r3 = rfunc(times(i-1) + (dt/2),S(i-1) + (dt/2)*(s2),I1(i-1) + (dt/2)*(i2),R(i-1) + (dt/2)*(r2));
+          
+          s4 = sfunc(times(i-1) + (dt),S(i-1) + (dt)*(s3),I1(i-1) + (dt)*(i3),R(i-1) + (dt)*(r3));
+          i4 = ifunc(times(i-1) + (dt),S(i-1) + (dt)*(s3),I1(i-1) + (dt)*(i3),R(i-1) + (dt)*(r3));
+          r4 = rfunc(times(i-1) + (dt),S(i-1) + (dt)*(s3),I1(i-1) + (dt)*(i3),R(i-1) + (dt)*(r3));
+          
+       
+          S(i) = S(i-1) + (dt/6)*(s1 + 2*(s2 + s3) + s4);
+          I1(i) = I1(i-1) + (dt/6)*(i1 + 2*(i2 + i3) + i4);
+          R(i) = R(i-1) + (dt/6)*(r1 + 2*(r2 + r3) + r4);
+          
+ 
+        end
+ 
+% ---- Values are now calculated, calculate areas for infectious integrals ----- %
+ 
+% area 0 is 0-1, area 1 is 1-2, midpoint is (n/2) + 1
+ 
+area0 = sum(I1(2:(numberofnodes/2)))*dt + (dt/2)*(I1(1) + I1((numberofnodes/2) + 1));
+area1 = sum(I1(((numberofnodes/2) + 2):numberofnodes))*dt + (dt/2)*(I1(numberofnodes+1) + I1((numberofnodes/2) + 1));
+ 
+X0 = r*gamma*area0;
+X1 = r*gamma*area1;
+
+
+% -------------------------- Shooting method ---------------------------- %
+
+
+
+maxiter = 1000;
+bepsilon = beta/(r*n);
+
+constraint1 = X0;
+constraint2 = X1;
+
+%First guess
+z1guess = 2.8;
+z1prime = 0.2;
+u1guess = z1prime;
+
+%First guess
+%z1guess = 5;
+%z1prime = -0.7;
+%u1guess = z1prime;
+
+% Second guess
+z2guess = 2.6 ;
+z2prime = 0.3;
+u2guess = z2prime;
+
+% Second guess
+%z2guess = 4.5;
+%z2prime = -0.6;
+%u2guess = z2prime;
+
+% First define the mesh
+begginingtime = 0;
+bt = begginingtime;
+endtime = 2;
+et =endtime;
+
+%numberofnodes = 400;
+stepsize = (et-bt)/numberofnodes;
+h = stepsize;
+timevalues = zeros(numberofnodes+1,1);
+t = timevalues;
+t(1) = bt;
+
+for i = 1:numberofnodes
+    t(i+1) = t(i) + stepsize; 
+end
+
+% Let z be the solution and u be its derivative, then
+
+z1 = zeros(numberofnodes+1,1);
+u1 = zeros(numberofnodes+1,1);
+z1(1) = z1guess;
+u1(1) = u1guess;
+
+z2 = zeros(numberofnodes+1,1);
+u2 = zeros(numberofnodes+1,1);
+z2(1) = z2guess;
+u2(1) = u2guess;
+
+% Define the ODE
+
+f = @(t,z,u) -bepsilon*exp(z)*((u/gamma) + 1);
+
+% Based on the intial guesses, calculate the the function Z
+
+for i =2:numberofnodes+1
+
+                k1first = h*u1(i-1);
+                l1first = h*f(t(i-1),z1(i-1),u1(i-1));
+                k2first = h*(u1(i-1) + (l1first/2));
+                l2first = h*f(t(i-1) + (h/2),z1(i-1) + (k1first/2),u1(i-1) + (l1first/2));
+                k3first = h*(u1(i-1) + (l2first/2));
+                l3first = h*f(t(i-1) + (h/2),z1(i-1) + (k2first/2),u1(i-1) + (l2first/2));
+                k4first = h*(u1(i-1) + l3first);
+                l4first = h*f(t(i-1) + (h),z1(i-1) + k3first ,u1(i-1) + l3first);
+
+                z1(i) = z1(i-1) + (1/6)*(k1first + (2*k2first) + (2*k3first) + k4first); %sol
+                u1(i) = u1(i-1) + (1/6)*(l1first + (2*l2first) + (2*l3first) + l4first); %sol deriv
+                
+                k1first2 = h*u2(i-1);
+                l1first2 = h*f(t(i-1),z2(i-1),u2(i-1));
+                k2first2 = h*(u2(i-1) + (l1first2/2));
+                l2first2 = h*f(t(i-1) + (h/2),z2(i-1) + (k1first2/2),u2(i-1) + (l1first2/2));
+                k3first2 = h*(u2(i-1) + (l2first2/2));
+                l3first2 = h*f(t(i-1) + (h/2),z2(i-1) + (k2first2/2),u2(i-1) + (l2first2/2));
+                k4first2 = h*(u2(i-1) + l3first2);
+                l4first2 = h*f(t(i-1) + (h),z2(i-1) + k3first2 ,u2(i-1) + l3first2);
+
+                z2(i) = z2(i-1) + (1/6)*(k1first2 + (2*k2first2) + (2*k3first2) + k4first2); %sol
+                u2(i) = u2(i-1) + (1/6)*(l1first2 + (2*l2first2) + (2*l3first2) + l4first2); 
+       
+end
+
+% ---------- First guess calculations -------------------------------------
+
+% Now test for constraints i,e X_0 = 100, X_1 = 50. Using trapezium rule
+% for exp(z).
+
+areaguess1 = zeros(numberofnodes,1);
+
+for i = 1:numberofnodes
+areaguess1(i) = (h/2)*(exp(z1(i)) + exp(z1(i+1)));    
+end
+
+totalareaguessf1 = 0;
+totalareaguessf2 = 0;
+
+for i = 1:(ceil(numberofnodes/2))
+    totalareaguessf1 = totalareaguessf1 + areaguess1(i);
+    totalareaguessf2 = totalareaguessf2 + areaguess1(i+(floor(numberofnodes/2)));
+end
+
+
+% ---------- Second guess area calculations -------------------------------
+
+% Now test for constraints i,e X_0 = 100, X_1 = 50. Using trapezium rule
+% for exp(z).
+
+areaguess2 = zeros(numberofnodes,1);
+
+for i = 1:numberofnodes
+areaguess2(i) = (h/2)*(exp(z2(i)) + exp(z2(i+1)));    
+end
+
+totalareaguess2f1 = 0;
+totalareaguess2f2 = 0;
+
+for i = 1:(ceil(numberofnodes/2))
+    totalareaguess2f1 = totalareaguess2f1 + areaguess2(i);
+    totalareaguess2f2 = totalareaguess2f2 + areaguess2(i+(floor(numberofnodes/2)));
+end
+
+% ----------------------------------------------------------------------------------
+
+% Calculate the first jacobian for broydens iteration
+
+da1 = z2guess - z1guess;
+db1 = u2guess - u1guess;
+
+firstjacobianf1a = (totalareaguess2f1 - totalareaguessf1)/da1;
+firstjacobianf1b = (totalareaguess2f1 - totalareaguessf1)/db1;
+firstjacobianf2a = (totalareaguess2f2 - totalareaguessf2)/da1;
+firstjacobianf2b = (totalareaguess2f2 - totalareaguessf2)/db1;
+
+% ----------------------------------------------------------------------------------
+
+% Build everything we need for Broydens calculations and formula for
+% iterations
+
+invalueguess = zeros(maxiter,1);
+inderivguess = zeros(maxiter,1);
+
+invalueguess(1) = z1guess;
+inderivguess(1) = u1guess;
+invalueguess(2) = z2guess;
+inderivguess(2) = u2guess;
+
+jacobianf1a = zeros(maxiter,1);
+jacobianf1b = zeros(maxiter,1);
+jacobianf2a = zeros(maxiter,1);
+jacobianf2b = zeros(maxiter,1);
+
+jacobianf1a(1) = firstjacobianf1a;
+jacobianf1b(1) = firstjacobianf1b;
+jacobianf2a(1) = firstjacobianf2a;
+jacobianf2b(1) = firstjacobianf2b;
+
+f1area = zeros(maxiter,1);
+f2area = zeros(maxiter,1);
+
+f1area(1) = totalareaguessf1-constraint1;
+f1area(2) = totalareaguessf2-constraint2;
+f2area(1) = totalareaguess2f1-constraint1;
+f2area(2) = totalareaguess2f2-constraint2;
+
+% -------------------------------------------------------------------------------
+
+% Now we build the next jacobian
+
+
+for i=1:maxiter
+j=i;
+p1 = [f1area(i+1)-f1area(i);f2area(i+1)-f2area(i)];
+p2 = [jacobianf1a(i),jacobianf1b(i);jacobianf2a(i),jacobianf2b(i)];
+p3 = [invalueguess(i+1)-invalueguess(i);inderivguess(i+1)-inderivguess(i)];
+p4 = transpose(p3);
+p5 = (invalueguess(i+1)-invalueguess(i))^2 + (inderivguess(i+1)-inderivguess(i))^2;
+
+newjacob = p2 + ((p1 - p2*p3)*(p4))/p5;
+
+jacobianf1a(i+1) = newjacob(1,1);
+jacobianf1b(i+1) = newjacob(1,2);
+jacobianf2a(i+1) = newjacob(2,1);
+jacobianf2b(i+1) = newjacob(2,2);
+
+newapprox = [invalueguess(i+1);inderivguess(i+1)] - inv(newjacob)*[f1area(i+1);f2area(i+1)];
+
+invalueguess(i+2) = newapprox(1);
+inderivguess(i+2) = newapprox(2);
+
+% We now need to work out the new areas for the given values
+
+zvals = zeros(numberofnodes+1,1);
+uvals = zeros(numberofnodes+1,1);
+
+zvals(1) = invalueguess(i+2);
+uvals(1) = inderivguess(i+2);
+
+for i =2:numberofnodes+1
+
+                k1firstval = h*uvals(i-1);
+                l1firstval = h*f(t(i-1),zvals(i-1),uvals(i-1));
+                k2firstval = h*(uvals(i-1) + (l1firstval/2));
+                l2firstval = h*f(t(i-1) + (h/2),zvals(i-1) + (k1firstval/2),uvals(i-1) + (l1firstval/2));
+                k3firstval = h*(uvals(i-1) + (l2firstval/2));
+                l3firstval = h*f(t(i-1) + (h/2),zvals(i-1) + (k2firstval/2),uvals(i-1) + (l2firstval/2));
+                k4firstval = h*(uvals(i-1) + l3firstval);
+                l4firstval = h*f(t(i-1) + (h),zvals(i-1) + k3firstval ,uvals(i-1) + l3firstval);
+
+                zvals(i) = zvals(i-1) + (1/6)*(k1firstval + (2*k2firstval) + (2*k3firstval) + k4firstval); %sol
+                uvals(i) = uvals(i-1) + (1/6)*(l1firstval + (2*l2firstval) + (2*l3firstval) + l4firstval); %sol deriv
+                
+end
+
+% ----------- Calculate the new areas
+
+area = zeros(numberofnodes,1);
+
+for i = 1:numberofnodes
+area(i) = (h/2)*(exp(zvals(i)) + exp(zvals(i+1)));    
+end
+
+totalareaf1 = 0;
+totalareaf2 = 0;
+
+for i = 1:(ceil(numberofnodes/2))
+    totalareaf1 = totalareaf1 + area(i);
+    totalareaf2 = totalareaf2 + area(i+(floor(numberofnodes/2)));
+end
+
+f1area(j+2) = totalareaf1-constraint1;
+f2area(j+2) = totalareaf2-constraint2;
+
+areanorm = norm(totalareaf1-constraint1,totalareaf2-constraint2);
+
+if areanorm < 10^(-6)
+   return; 
+end
+
+end
+
+
+    for i = 1:numberofnodes+1
+
+        sol(i) = exp(zvals(i))/(r*gamma);
+
+
+    end
+    
+              % --------------- FEM --------------- %
+              
+tic
+
+tbeg = 0;
+tend = 2;
+dt = (tend-tbeg)/numberofnodes;
+
+% Parameters, beta, n, r, gamma;
+
+maxiter = 100;
+
+lambda0 = 0;
+lambda1 = 0;
+
+times = zeros(numberofnodes+1,1);
+
+for i = 1: numberofnodes+1
+   
+    times(i) = tbeg + (i-1)*dt;
+    
+end
+
+
+            % Algo for initial guess in the form y = a*exp(bx)
+            
+            a = (X0*log((X1/X0)))/((X1/X0)-1);
+            a = a/(r*gamma);
+            b = log((X1/X0));
+        
+            iinitial = @(t)  a*exp(b*t);
+            
+            iinitialguess = zeros(numberofnodes+1,1);
+            iprimeinitialguess = zeros(numberofnodes+1,1); 
+
+            for i = 1: numberofnodes+1
+               iinitialguess(i) =  iinitial(times(i));
+               
+            end
+            
+     
+            errors = 10*ones(numberofnodes+1,1);
+            residuals = 10*ones(numberofnodes+1,1);
+            j = 1;
+            
+            while j < maxiter && norm(residuals)>10^(-1.5) 
+            
+         
+            I = iinitialguess;
+            
+            % --------------------------------------------------- %
+
+            % Build ------ Jacobian ------- matrix (LHS)
+
+            LHS = zeros(numberofnodes+3);
+
+            for i = 2: numberofnodes
+                
+               % int 1 | x_{i-1} -> x_{i}
+               
+               LHS(i,i-1)  =  LHS(i,i-1) + (1/dt)*( 2*I(i-1) - 2*I(i));
+               LHS(i,i)    =  LHS(i,i) + (1/dt)*( 2*I(i) - 2*I(i-1));
+               
+                % int 1 | x_{i} -> x_{i+1}
+               
+               LHS(i,i)   = LHS(i,i) + (1/dt)*( 2*I(i) - 2*I(i+1));
+               LHS(i,i+1) = LHS(i,i+1) + (1/dt)*( 2*I(i+1) - 2*I(i));
+                
+               % int 2 | x_{i-1} -> x_{i}
+
+               LHS(i,i-1) = LHS(i,i-1) + (1/(2*dt))*(-2*I(i-1)) ;
+               LHS(i,i)   = LHS(i,i) + (1/(2*dt))*(2*I(i)) ;
+            
+               % int 2 | x_{i} -> x_{i+1}
+
+               LHS(i,i)   = LHS(i,i) + (1/(2*dt))*(2*I(i)) ;
+               LHS(i,i+1) = LHS(i,i+1) + (1/(2*dt))*(-2*I(i+1));
+               
+               % int 3 | x_{i-1} -> x_{i}
+               
+               LHS(i,i-1) = LHS(i,i-1) - (beta/n)*( (I(i-1)^2)*(-1/4) + I(i-1)*I(i)*(-1/6) + (I(i)^2)*(-1/12)) ;
+               LHS(i,i)   = LHS(i,i)  - (beta/n)*( (I(i)^2)*(3/4) + I(i-1)*I(i)*(-1/6) + (I(i-1)^2)*(-1/12)) ;
+               
+               % int 3 | x_{i} -> x_{i+1}
+
+               LHS(i,i)   =  LHS(i,i)  - (beta/n)*( (I(i)^2)*(-3/4) + I(i)*I(i+1)*(1/6) + (I(i+1)^2)*(1/12) );
+               LHS(i,i+1) =  LHS(i,i+1)  - (beta/n)*( (I(i+1)^2)*(1/6) + I(i)*I(i+1)*(1/6) + (I(i)^2)*(1/12) );
+               
+               % int 4 | x_{i-1} -> x_{i}
+               
+               LHS(i,i-1)  = LHS(i,i-1) -(beta*gamma/n)*( (I(i-1)^2)*(3*dt/20) + I(i-1)*I(i)*(dt/5) + (I(i)^2)*(3*dt/20) );
+               LHS(i,i)    = LHS(i,i) -(beta*gamma/n)*( (I(i-1)^2)*(dt/10) + I(i-1)*I(i)*(6*dt/20) + (I(i)^2)*(3*dt/5) );
+
+               % int 4 | x_{i} -> x_{i+1}
+
+               LHS(i,i)   = LHS(i,i)  -(beta*gamma/n)*( (I(i)^2)*(3*dt/5) + I(i)*I(i+1)*(6*dt/20) + (I(i+1)^2)*(dt/10) ) ;
+               LHS(i,i+1) = LHS(i,i+1) -(beta*gamma/n)*( (I(i)^2)*(3*dt/20) + I(i)*I(i+1)*(dt/5) + (I(i+1)^2)*(3*dt/20) );                    
+               
+        
+               
+            end
+
+
+           % int1 Boundary conditions
+           
+           LHS(1,1) = LHS(1,1) + (1/dt)*( 2*I(1) - 2*I(2));
+           LHS(1,2) = LHS(1,2) + (1/dt)*( 2*I(2) - 2*I(1));
+           
+           LHS(numberofnodes+1,numberofnodes)   =  LHS(numberofnodes+1,numberofnodes) + (1/dt)*( 2*I(numberofnodes) - 2*I(numberofnodes+1));
+           LHS(numberofnodes+1,numberofnodes+1) =  LHS(numberofnodes+1,numberofnodes+1) + (1/dt)*( 2*I(numberofnodes+1) - 2*I(numberofnodes));
+ 
+           % int2
+           
+           LHS(1,1) = LHS(1,1) + (1/(2*dt))*(2*I(1)) ;
+           LHS(1,2) = LHS(1,2) + (1/(2*dt))*(-2*I(2));
+               
+           LHS(numberofnodes+1,numberofnodes)   = LHS(numberofnodes+1,numberofnodes) + (1/(2*dt))*(-2*I(numberofnodes)) ;
+           LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1) + (1/(2*dt))*(2*I(numberofnodes+1)) ;
+           
+           % int3
+           
+           LHS(1,1) =  LHS(1,1)  - (beta/n)*( (I(1)^2)*(-3/4) + I(1)*I(2)*(1/6) + (I(2)^2)*(1/12) );
+           LHS(1,2) =  LHS(1,2)  - (beta/n)*( (I(2)^2)*(1/6) + I(1)*I(2)*(1/6) + (I(1)^2)*(1/12) );
+           
+           LHS(numberofnodes+1,numberofnodes)   = LHS(numberofnodes+1,numberofnodes) - (beta/n)*( (I(numberofnodes)^2)*(-1/4) + I(numberofnodes)*I(numberofnodes+1)*(-1/6) + (I(numberofnodes+1)^2)*(-1/12)) ;
+           LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1)  - (beta/n)*( (I(numberofnodes+1)^2)*(3/4) + I(numberofnodes)*I(numberofnodes+1)*(-1/6) + (I(numberofnodes)^2)*(-1/12)) ;
+               
+
+           % int4
+           
+           LHS(1,1) = LHS(1,1)  -(beta*gamma/n)*( (I(1)^2)*(3*dt/5) + I(1)*I(2)*(6*dt/20) + (I(2)^2)*(dt/10) ) ;
+           LHS(1,2) = LHS(1,2) -(beta*gamma/n)*( (I(1)^2)*(3*dt/20) + I(1)*I(2)*(dt/5) + (I(2)^2)*(3*dt/20) );                    
+               
+           LHS(numberofnodes+1,numberofnodes)   = LHS(numberofnodes+1,numberofnodes) -(beta*gamma/n)*( (I(numberofnodes)^2)*(3*dt/20) + I(numberofnodes)*I(numberofnodes+1)*(dt/5) + (I(numberofnodes+1)^2)*(3*dt/20) );
+           LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1) -(beta*gamma/n)*( (I(numberofnodes)^2)*(dt/10) + I(numberofnodes)*I(numberofnodes+1)*(6*dt/20) + (I(numberofnodes+1)^2)*(3*dt/5) );
+
+           
+           % Boundary conditions from the by parts
+           
+           LHS(1,1) = LHS(1,1) + (1/dt)*(I(2)-I(1));
+  
+           LHS(numberofnodes+1,numberofnodes+1) = LHS(numberofnodes+1,numberofnodes+1) - (1/dt)*(I(numberofnodes+1) - I(numberofnodes));
+       
+           %--------------------------------------------------%
+           
+           % -------- Now look at lagrage terms, lambda 0 --- %
+           
+           % int 6
+           
+           for i = 2:floor((numberofnodes+1)/2)
+               
+              LHS(i,numberofnodes+2) = r*gamma*(dt);
+               
+           end
+           
+           LHS(1,numberofnodes+2) = r*gamma*(dt/2);
+           LHS(floor((numberofnodes+1)/2)+1,numberofnodes+2) = r*gamma*(dt/2);
+           
+           
+            %--------------------------------------------------%
+
+            % -------- Now look at lagrage terms, lambda 1 --- %
+            
+            % int 6
+           
+              for i = floor((numberofnodes+1)/2)+2:numberofnodes+1
+               
+              LHS(i,numberofnodes+3) = r*gamma*(dt);
+               
+              end
+           
+              LHS(floor((numberofnodes+1)/2)+1,numberofnodes+3) = r*gamma*(dt/2);
+              LHS(numberofnodes+1,numberofnodes+3) = r*gamma*(dt/2);
+
+            %--------------------------------------------------%
+            
+             % -------- Now look at Constraint terms, X_0 --- %
+           
+           
+            for i = 2:floor((numberofnodes+1)/2)
+               
+              LHS(numberofnodes+2,i) = r*gamma*(dt);
+               
+           end
+
+           LHS(numberofnodes+2,1) = r*gamma*(dt/2);
+           LHS(numberofnodes+2,floor((numberofnodes+1)/2)+1) = r*gamma*(dt/2);
+           
+           
+            %--------------------------------------------------%
+
+             % -------- Now look at Constraint terms, X_1 --- %
+           
+              for i = floor((numberofnodes+1)/2)+2:numberofnodes
+               
+              LHS(numberofnodes+3,i) = r*gamma*(dt);
+               
+              end
+           
+              LHS(numberofnodes+3,floor((numberofnodes+1)/2)+1) = r*gamma*(dt/2);
+              LHS(numberofnodes+3,numberofnodes+1) = r*gamma*(dt/2);
+
+            %--------------------------------------------------%
+         
+            RHS = zeros(numberofnodes+3,1);
+            
+            newconstraintX0 = sum(iinitialguess(2:floor((numberofnodes+1)/2)))*r*gamma*dt + (dt/2)*r*gamma*(iinitialguess(1) + iinitialguess(floor((numberofnodes+1)/2)+1));
+            newconstraintX1 = sum(iinitialguess(floor((numberofnodes+1)/2)+2:numberofnodes))*r*gamma*dt + (dt/2)*r*gamma*(iinitialguess(floor((numberofnodes+1)/2)+1) + iinitialguess(numberofnodes+1));
+            
+            area0 = X0 - newconstraintX0;
+            area1 = X1 - newconstraintX1;
+            
+            RHS(numberofnodes+2) = area0;
+            RHS(numberofnodes+3) = area1;
+            
+            
+            for i = 2: numberofnodes
+                
+                int1rhs1 = -(1/dt)*( I(i)^2 + I(i-1)^2 - 2*I(i)*I(i-1));
+                int1rhs2 = -(1/dt)*( I(i)^2 + I(i+1)^2 - 2*I(i)*I(i+1));
+                
+                int2rhs1 = -(1/(2*dt))*( I(i)^2 - I(i-1)^2);
+                int2rhs2 = -(1/(2*dt))*( I(i)^2 - I(i+1)^2);
+                
+                int3rhs1 = (beta/n)*( (I(i)^3)*(1/4) - (I(i-1)^3)*(1/12) + (I(i-1)^2)*I(i)*(-1/12) + (I(i)^2)*I(i-1)*(-1/12) );
+                int3rhs2 = (beta/n)*( (I(i+1)^3)*(1/12) - (I(i)^3)*(1/4) + (I(i)^2)*I(i+1)*(1/12) + (I(i+1)^2)*I(i)*(1/12) );
+                
+                int4rhs1 = (beta*gamma/n)*( (I(i-1)^3)*(dt/20) + (I(i-1)^2)*I(i)*(dt/10) + (I(i)^2)*I(i-1)*(3*dt/20) + (I(i)^3)*(dt/5) );
+                int4rhs2 = (beta*gamma/n)*( (I(i)^3)*(dt/5) + (I(i)^2)*I(i+1)*(3*dt/20) + (I(i+1)^2)*I(i)*(dt/10) + (I(i+1)^3)*(dt/20) );
+                
+                RHS(i) = int1rhs1 + int1rhs2 + int2rhs1 + int2rhs2 + int3rhs1 + int3rhs2 + int4rhs1 + int4rhs2;
+                
+            end
+        
+            
+            % ----- Boundary terms for RHS(0) ---- %
+            
+            i=1;
+        
+            % from int 1
+            
+            RHSbeg1 = -(1/dt)*( I(i)^2 + I(i+1)^2 - 2*I(i)*I(i+1));
+            
+            % from int 2
+            
+            RHSbeg2 = -(1/(2*dt))*( I(i)^2 - I(i+1)^2);
+            
+            % from int 3 
+            
+             RHSbeg3 = (beta/n)*( (I(i+1)^3)*(1/12) - (I(i)^3)*(1/4) + (I(i)^2)*I(i+1)*(1/12) + (I(i+1)^2)*I(i)*(1/12) );
+            
+            % from int 4 
+            
+            RHSbeg4 = (beta*gamma/n)*( (I(i)^3)*(dt/5) + (I(i)^2)*I(i+1)*(3*dt/20) + (I(i+1)^2)*I(i)*(dt/10) + (I(i+1)^3)*(dt/20) );
+               
+            % from int 5
+            
+            RHSbeg5 = ((I(i)^2) - I(i)*I(i+1))*(1/dt) ;
+            
+            RHS(1) = RHSbeg1 + RHSbeg2 + RHSbeg3 + RHSbeg4 + RHSbeg5;
+            
+            
+           
+            % ------------------------------------ %
+            
+            % ----- Boundary terms for RHS(2) ---- %
+            
+            i = (numberofnodes+1);
+            
+            % from int 1
+            
+            RHSend1 = -(1/dt)*( I(i)^2 + I(i-1)^2 - 2*I(i)*I(i-1));
+            
+            % from int 2
+            
+            RHSend2 = -(1/(2*dt))*( I(i)^2 - I(i-1)^2);
+            
+            % from int3 
+            
+            RHSend3 = (beta/n)*( (I(i)^3)*(1/4) - (I(i-1)^3)*(1/12) + (I(i-1)^2)*I(i)*(-1/12) + (I(i)^2)*I(i-1)*(-1/12) );
+            
+            % from int4
+            
+            RHSend4 = (beta*gamma/n)*( (I(i-1)^3)*(dt/20) + (I(i-1)^2)*I(i)*(dt/10) + (I(i)^2)*I(i-1)*(3*dt/20) + (I(i)^3)*(dt/5) );
+            
+            % from int5
+            
+            RHSend5 = ((I(i)^2) - I(i)*I(i-1))*(1/dt);
+            
+            RHS(numberofnodes+1) = RHSend1 + RHSend2 + RHSend3 + RHSend4 + RHSend5; 
+            
+            % ------------------------------------ %
+            
+            
+            % lagrange terms negation from initial guess
+            
+                for i = 2:floor((numberofnodes+1)/2)
+
+                    RHS(i) = RHS(i) - lambda0*(r*gamma*dt);
+
+                end
+                
+                RHS(1) = RHS(1) - lambda0*(r*gamma*dt/2);
+                RHS(floor((numberofnodes+1)/2)+1) = RHS(floor((numberofnodes+1)/2)+1) - lambda0*(r*gamma*dt/2);
+
+                for i = floor((numberofnodes+1)/2)+2:numberofnodes
+
+                    RHS(i) = RHS(i) - lambda1*r*gamma*(dt);
+
+                end
+                
+                RHS(numberofnodes+1) = RHS(numberofnodes+1) - lambda1*(r*gamma*dt/2);
+                RHS(floor((numberofnodes+1)/2)+1) = RHS(floor((numberofnodes+1)/2)+1) - lambda1*(r*gamma*dt/2);
+                
+            
+            prevlambda0 = lambda0;
+            prevlambda1 = lambda1;
+                
+            newi = inv(LHS)*RHS;
+            
+            previousI = zeros(numberofnodes+1,1);
+            
+            for i = 1:numberofnodes+1
+               
+                previousI(i) = iinitialguess(i);
+                
+            end
+           
+            iinitialguess = zeros(numberofnodes+1,1);
+            
+            for i = 1:numberofnodes+1
+                
+               iinitialguess(i) = newi(i) + previousI(i);
+       
+            end
+            
+            lambda0 = newi(numberofnodes+2) + prevlambda0;
+            lambda1 = newi(numberofnodes+3) + prevlambda1;
+            
+         
+            residuals = zeros(numberofnodes+1,1);
+            
+            for i = 1:numberofnodes+1
+                
+                residuals(i) = abs(previousI(i) - iinitialguess(i));
+                
+            end
+
+         
+           
+            j=j+1;
+           
+            
+            end
+            
+          toc
+            
+            % ------ End of Newtons FEM ------ %
+            
+            Shootingmethod = sol;
+            InfectiousSIR = I1;
+            FEMnewtons = iinitialguess;
+         
+            figure
+            hold on
+            %plot(t,Shootingmethod,'DisplayName','Shooting Method')
+            plot(t,InfectiousSIR,'DisplayName', 'Infectious - SIR ')
+            plot(t,FEMnewtons,'DisplayName','FEM - Newtons')
+            hold off
+            
+            % Create ylabel
+            ylabel({'Infected population'});
+
+            % Create xlabel
+            xlabel({'Time (Days)'});
+
+            % Create title
+            title({'Results of Newtons FEM vs SIR solution for Infected cases'});
+            
+            lgd = legend;
+            title(legend,'Legend');
+            set(gca,'fontsize',13)
+
+    % -- L2 errors -- %
+
+    shootingerrors = zeros(numberofnodes+1,1);
+    shootingerrorssq = zeros(numberofnodes+1,1);
+    
+    femerrors = zeros(numberofnodes+1,1);
+    femerrorssq = zeros(numberofnodes+1,1);
+    
+
+    for i = 1:numberofnodes+1
+
+        shootingerrors(i) = abs(I1(i) - sol(i));
+        shootingerrorssq(i) = shootingerrors(i)^2;
+        
+        femerrors(i) = abs(I1(i) - iinitialguess(i));
+        femerrorssq(i) = femerrors(i)^2;
+        
+    end
+
+
+           lmaxerrorshooting = max(abs(shootingerrors))
+           lmaxerrorsfem = max(abs(femerrors))
+           
+           shootl2error = sqrt(dt*sum(shootingerrorssq(2:numberofnodes)) + (dt/2)*(shootingerrorssq(1) + shootingerrorssq(numberofnodes+1)))
+           feml2error = sqrt(dt*sum(femerrorssq(2:numberofnodes)) + (dt/2)*(femerrorssq(1) + femerrorssq(numberofnodes+1)))
+           
+
+       
